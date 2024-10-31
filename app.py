@@ -416,12 +416,14 @@ def show_reports_page():
                         st.warning(f"⚠️ {row['Employé']} a dépassé les 48h hebdomadaires: {row['Total Heures']}h")
 
                 # Export Excel
+                excel_data = export_dataframe_to_excel(df_weekly)
+               excel_data = export_dataframe_to_excel(df_weekly)
                 if st.download_button(
                     label="📥 Télécharger le rapport hebdomadaire",
-                    data=df_weekly.to_excel(index=False, engine='openpyxl'),
+                    data=excel_data,
                     file_name=f'rapport_hebdo_{start_of_week.strftime("%Y-%m-%d")}.xlsx',
                     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                ):
+                    ):
                     st.success("Rapport exporté avec succès!")
             else:
                 st.info("Aucune donnée pour cette semaine")
@@ -512,12 +514,13 @@ def show_reports_page():
                 st.dataframe(df_monthly)
 
                 # Export Excel
-                if st.download_button(
+                excel_data = export_dataframe_to_excel(df_monthly)
+                   if st.download_button(
                     label="📥 Télécharger le rapport mensuel",
-                    data=df_monthly.to_excel(index=False, engine='openpyxl'),
-                    file_name=f'rapport_mensuel_{selected_year}_{selected_month}.xlsx',
+                    data=excel_data,
+                        file_name=f'rapport_mensuel_{selected_year}_{selected_month}.xlsx',
                     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                ):
+                    ):
                     st.success("Rapport exporté avec succès!")
             else:
                 st.info("Aucune donnée pour ce mois")
@@ -684,11 +687,11 @@ def show_reports_page():
 
                 # Export Excel
                 if st.download_button(
-                    label="📥 Télécharger le rapport personnalisé",
-                    data=df_custom.to_excel(index=False, engine='openpyxl'),
-                    file_name=f'rapport_personnalise_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.xlsx',
-                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                ):
+                label="📥 Télécharger le rapport personnalisé",
+                data=excel_data,
+                file_name=f'rapport_personnalise_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    ):
                     st.success("Rapport exporté avec succès!")
             else:
                 st.info("Aucune donnée pour la période sélectionnée")
