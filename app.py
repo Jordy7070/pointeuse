@@ -480,15 +480,21 @@ def show_reports_page():
                         
                         # Vérifier les retards (exemple: arrivée après 9h)
                         day_scans = st.session_state.system.scans_df[
-                            (
-                        (st.session_state.system.scans_df['ID_Employé'] == emp['id']) &
+                            (st.session_state.system.scans_df['ID_Employé'] == emp['id']) &
                             (st.session_state.system.scans_df['Date'] == date_str) &
                             (st.session_state.system.scans_df['Type_Scan'] == 'Entrée')
                         ]
+
                         if not day_scans.empty:
                             first_entry = pd.to_datetime(day_scans.iloc[0]['Heure'])
                             if first_entry.hour >= 9 and first_entry.minute > 0:
                                 late_days += 1
+                        
+                        # Calculer les pauses
+                        day_scans = st.session_state.system.scans_df[
+                            (st.session_state.system.scans_df['ID_Employé'] == emp['id']) &
+                            (st.session_state.system.scans_df['Date'] == date_str)
+                        ].sort_values('DateTime')
                         
                         # Calculer les pauses
                         day_scans = st.session_state.system.scans_df[
