@@ -346,84 +346,63 @@ def show_reports_page():
 
     with tabs[1]:  # Rapport Hebdomadaire
         st.subheader("Rapport Hebdomadaire")
-
-        # Sélection de la semaine
-        selected_week = st.date_input(
-            "Sélectionnez une date dans la semaine désirée",
-            value=datetime.now()
+        week_date = st.date_input(
+            "Sélectionnez une date dans la semaine",
+            value=datetime.now(),
+            key="week_select"
         )
-
+        
         if st.button("Générer rapport hebdomadaire"):
-            # Calculer début et fin de semaine
-            start_of_week = selected_week - timedelta(days=selected_week.weekday())
-            end_of_week = start_of_week + timedelta(days=6)
-
+            start_week = week_date - timedelta(days=week_date.weekday())
+            end_week = start_week + timedelta(days=6)
+            
             weekly_data = []
-
             for code_barre, emp in st.session_state.system.employees.items():
+                weekly_hours = 0
                 daily_hours = []
-                total_hours = 0
-                total_pause = 0
-
-                # Calculer les heures pour chaque jour
-                current_date = start_of_week
-                while current_date <= end_of_week:
-                    date_str = current_date.strftime('%Y-%m-%d')
-                    hours = st.session_state.system.calculate_daily_hours(emp['id'], date_str)
-                    daily_hours.append(hours)
-                    total_hours += hours
+                current_date = start_week
+                
+                while current_date <= end_week:
+                    hours = st.session_state.system.calculate_daily_hours(
+                        emp['id'], 
+                        current_date.strftime('%Y-%m-%d')
+                    )
+                    daily_hours.append(round(hours, 2))
+                    weekly_hours += hours
                     current_date += timedelta(days=1)
-
-                if sum(daily_hours) > 0:
+                
+                if weekly_hours > 0:
                     weekly_data.append({
                         'Employé': f"{emp['prenom']} {emp['nom']}",
-                        'Lundi': round(daily_hours[0], 2),
-                        'Mardi': round(daily_hours[1], 2),
-                        'Mercredi': round(daily_hours[2], 2),
-                        'Jeudi': round(daily_hours[3], 2),
-                        'Vendredi': round(daily_hours[4], 2),
-                        'Samedi': round(daily_hours[5], 2),
-                        'Dimanche': round(daily_hours[6], 2),
-                        'Total Heures': round(total_hours, 2)
+                        'Lundi': daily_hours[0],
+                        'Mardi': daily_hours[1],
+                        'Mercredi': daily_hours[2],
+                        'Jeudi': daily_hours[3],
+                        'Vendredi': daily_hours[4],
+                        'Samedi': daily_hours[5],
+                        'Dimanche': daily_hours[6],
+                        'Total': round(weekly_hours, 2)
                     })
-
+            
             if weekly_data:
                 df_weekly = pd.DataFrame(weekly_data)
-
-                # Graphique hebdomadaire
-                df_plot = df_weekly.melt(
-                    id_vars=['Employé'],
-                    value_vars=['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'],
-                    var_name='Jour',
-                    value_name='Heures'
-                )
-
-                fig = px.bar(
-                    df_plot,
-                    x='Jour',
-                    y='Heures',
-                    color='Employé',
-                    title=f"Heures travaillées par jour - Semaine du {start_of_week.strftime('%d/%m/%Y')}"
-                )
+                
+                # Graphique
+                fig = px.bar(df_weekly, x='Employé', y='Total',
+                           title=f"Total des heures semaine du {start_week.strftime('%d/%m/%Y')}")
                 st.plotly_chart(fig)
-
-                # Tableau récapitulatif
+                
+                # Tableau
                 st.dataframe(df_weekly)
-
-                # Alertes temps de travail
-                for _, row in df_weekly.iterrows():
-                    if row['Total Heures'] > 48:  # Seuil légal en France
-                        st.warning(f"⚠️ {row['Employé']} a dépassé les 48h hebdomadaires: {row['Total Heures']}h")
 
                 # Export Excel
                 excel_data = export_dataframe_to_excel(df_weekly)
-               excel_data = export_dataframe_to_excel(df_weekly)
                 if st.download_button(
-                    label="📥 Télécharger le rapport hebdomadaire",
+                    label="📥 Télécharger le rapport",
                     data=excel_data,
-                    file_name=f'rapport_hebdo_{start_of_week.strftime("%Y-%m-%d")}.xlsx',
-                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                    ):
+                    file_name=f"rapport_hebdomadaire_{start_week.strftime('%Y-%m-%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ):
                     st.success("Rapport exporté avec succès!")
             else:
                 st.info("Aucune donnée pour cette semaine")
