@@ -247,6 +247,14 @@ def show_admin_page():
             df_employees = pd.DataFrame(st.session_state.system.employees.values())
             st.dataframe(df_employees)
 
+def export_dataframe_to_excel(df):
+    """Fonction utilitaire pour exporter un DataFrame en Excel"""
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False)
+        writer.save()
+    return buffer.getvalue()
+
 def show_reports_page():
     st.title("Rapports et Analyses")
 
