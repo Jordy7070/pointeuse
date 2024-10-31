@@ -343,15 +343,9 @@ if st.download_button(
     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 ):
     st.success("Rapport exporté avec succès!")
+else:
+    st.info("Aucune donnée pour cette date")
 
-
-
-                    file_name=f'rapport_journalier_{date_str}.xlsx',
-                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                ):
-                    st.success("Rapport exporté avec succès!")
-            else:
-                st.info("Aucune donnée pour cette date")
 
     with tabs[1]:  # Rapport Hebdomadaire
         st.subheader("Rapport Hebdomadaire")
