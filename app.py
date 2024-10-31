@@ -114,10 +114,10 @@ class PointageSystem:
 
             # Déterminer le type de scan
             aujourd_hui = self.scans_df[
-                (self.scans_df['Code_Barres'] == code_barre) & 
-                (self.scans_df['Date'] == date)
-                (self.scans_df['Date'] == date_str)
-            ]
+    (self.scans_df['Code_Barres'] == code_barre) & 
+    (self.scans_df['Date'] == date)
+]
+
 
             type_scan = 'Entrée' if len(aujourd_hui) % 2 == 0 else 'Sortie'
 
