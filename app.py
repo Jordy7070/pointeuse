@@ -1,11 +1,13 @@
-import streamlit as st
+import io  # Importer io pour la gestion des flux en mémoire
 import pandas as pd
+import streamlit as st
 from datetime import datetime, timedelta
 import json
 import os
 from pathlib import Path
 import plotly.express as px
-from io import BytesIO
+from io import BytesIO  # Importer BytesIO depuis io pour l'export Excel
+
 
 class PointageSystem:
     def __init__(self):
