@@ -107,6 +107,79 @@ class PointageSystem:
             
         return pd.DataFrame(report_data)
 
+def show_pointage_page():
+    st.title("Pointage")
+    
+    # Affichage de l'heure actuelle
+    st.write(f"Date et heure : {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+    
+    # Zone de scan
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("Scanner votre badge")
+        scan_input = st.text_input("", key="scan_input", help="Scannez votre badge")
+        
+        if scan_input:
+            success, message = st.session_state.system.record_scan(scan_input)
+            if success:
+                st.success(message)
+            else:
+                st.error(message)
+    
+    with col2:
+        st.subheader("Derniers pointages")
+        recent_scans = st.session_state.system.scans_df.tail(5)
+        if not recent_scans.empty:
+            for _, scan in recent_scans.iloc[::-1].iterrows():
+                st.write(f"{scan['Prénom']} {scan['Nom']} - {scan['Type_Scan']} à {scan['Heure']}")
+
+def show_admin_page():
+    st.title("Administration")
+    
+    tab1, tab2 = st.tabs(["Gestion des Employés", "Liste des Employés"])
+    
+    with tab1:
+        st.subheader("Ajouter un nouvel employé")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            id_emp = st.text_input("ID Employé")
+            nom = st.text_input("Nom")
+        
+        with col2:
+            prenom = st.text_input("Prénom")
+            code_barre = st.text_input("Code Barres")
+        
+        if st.button("Ajouter l'employé"):
+            if all([id_emp, nom, prenom, code_barre]):
+                if st.session_state.system.add_employee(id_emp, nom, prenom, code_barre):
+                    st.success("Employé ajouté avec succès!")
+                else:
+                    st.error("Ce code-barres existe déjà!")
+            else:
+                st.error("Veuillez remplir tous les champs")
+    
+    with tab2:
+        st.subheader("Liste des employés")
+        if st.session_state.system.employees:
+            df_employees = pd.DataFrame(st.session_state.system.employees.values())
+            st.dataframe(df_employees)
+            
+            if st.button("Exporter la liste"):
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df_employees.to_excel(writer, index=False)
+                excel_data = output.getvalue()
+                st.download_button(
+                    label="Télécharger Excel",
+                    data=excel_data,
+                    file_name="employees.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        else:
+            st.info("Aucun employé enregistré")
+
 def show_reports_page():
     st.title("Rapports et Analyses")
     
@@ -114,8 +187,6 @@ def show_reports_page():
     
     with tab1:
         st.subheader("Heures travaillées par jour")
-        
-        # Sélection de la date
         selected_date = st.date_input("Sélectionnez la date")
         
         if selected_date:
@@ -126,7 +197,7 @@ def show_reports_page():
                 hours = st.session_state.system.calculate_daily_hours(emp['id'], date_str)
                 if hours > 0:
                     daily_report.append({
-                        'Nom': f"{emp['prénom']} {emp['nom']}",
+                        'Nom': f"{emp['prenom']} {emp['nom']}",
                         'Heures': round(hours, 2)
                     })
             
@@ -185,19 +256,6 @@ def show_reports_page():
                 # Affichage tableau détaillé
                 st.dataframe(monthly_report)
                 
-                # Statistiques globales
-                st.subheader("Statistiques globales")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Moyenne d'heures par employé", 
-                             f"{monthly_report['Total_Heures'].mean():.2f}")
-                with col2:
-                    st.metric("Total des heures travaillées", 
-                             f"{monthly_report['Total_Heures'].sum():.2f}")
-                with col3:
-                    st.metric("Nombre d'employés actifs", 
-                             len(monthly_report))
-                
                 # Export Excel
                 if st.button("Exporter le rapport mensuel"):
                     output = BytesIO()
@@ -205,27 +263,6 @@ def show_reports_page():
                         monthly_report.to_excel(writer, 
                                              sheet_name='Rapport Mensuel',
                                              index=False)
-                        
-                        # Ajout d'une feuille pour les détails quotidiens
-                        daily_details = []
-                        for _, emp in monthly_report.iterrows():
-                            hours = st.session_state.system.calculate_monthly_hours(
-                                emp['ID_Employé'], selected_year, selected_month
-                            )
-                            for date, hrs in hours.items():
-                                daily_details.append({
-                                    'ID_Employé': emp['ID_Employé'],
-                                    'Nom': f"{emp['Prénom']} {emp['Nom']}",
-                                    'Date': date,
-                                    'Heures': round(hrs, 2)
-                                })
-                        
-                        pd.DataFrame(daily_details).to_excel(
-                            writer,
-                            sheet_name='Détails Quotidiens',
-                            index=False
-                        )
-                    
                     excel_data = output.getvalue()
                     st.download_button(
                         label="Télécharger Excel",
@@ -236,10 +273,28 @@ def show_reports_page():
             else:
                 st.info("Aucune donnée pour cette période")
 
-# Mettre à jour la fonction main() pour inclure la nouvelle page de rapports
 def main():
-    # ... (reste du code inchangé)
-    if page == "Rapports":
+    st.set_page_config(
+        page_title="Système de Pointage",
+        page_icon="⏰",
+        layout="wide"
+    )
+    
+    # Initialisation du système
+    if 'system' not in st.session_state:
+        st.session_state.system = PointageSystem()
+
+    # Menu latéral
+    with st.sidebar:
+        st.title("Navigation")
+        page = st.radio("", ["Pointage", "Administration", "Rapports"])
+
+    # Navigation entre les pages
+    if page == "Pointage":
+        show_pointage_page()
+    elif page == "Administration":
+        show_admin_page()
+    elif page == "Rapports":
         show_reports_page()
 
 if __name__ == "__main__":
