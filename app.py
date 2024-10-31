@@ -9,6 +9,7 @@ from io import BytesIO
 
 class PointageSystem:
     def __init__(self):
+        # Création des dossiers et fichiers nécessaires
         self.data_dir = Path("data")
         self.data_dir.mkdir(exist_ok=True)
         self.employees_file = self.data_dir / "employees.json"
@@ -17,20 +18,42 @@ class PointageSystem:
 
     def load_data(self):
         # Chargement des employés
+        """Chargement des données depuis les fichiers"""
+        # Chargement des employés depuis le JSON
         if self.employees_file.exists():
             with open(self.employees_file, 'r') as f:
                 self.employees = json.load(f)
+            try:
+                with open(self.employees_file, 'r', encoding='utf-8') as f:
+                    self.employees = json.load(f)
+            except Exception as e:
+                st.error(f"Erreur lors du chargement des employés: {str(e)}")
+                self.employees = {}
         else:
             self.employees = {}
             self.save_employees()
 
         # Chargement des pointages
+        # Chargement des pointages depuis le CSV
         if self.scans_file.exists():
             self.scans_df = pd.read_csv(self.scans_file)
             # Conversion des colonnes de date et heure
             self.scans_df['DateTime'] = pd.to_datetime(
                 self.scans_df['Date'] + ' ' + self.scans_df['Heure']
             )
+            try:
+                self.scans_df = pd.read_csv(self.scans_file)
+                # Conversion explicite des colonnes de date et heure
+                if not self.scans_df.empty:
+                    self.scans_df['DateTime'] = pd.to_datetime(
+                        self.scans_df['Date'] + ' ' + self.scans_df['Heure']
+                    )
+            except Exception as e:
+                st.error(f"Erreur lors du chargement des pointages: {str(e)}")
+                self.scans_df = pd.DataFrame(columns=[
+                    'ID_Employé', 'Nom', 'Prénom', 'Code_Barres', 
+                    'Date', 'Heure', 'Type_Scan', 'DateTime'
+                ])
         else:
             self.scans_df = pd.DataFrame(columns=[
                 'ID_Employé', 'Nom', 'Prénom', 'Code_Barres', 
@@ -41,14 +64,29 @@ class PointageSystem:
     def save_employees(self):
         with open(self.employees_file, 'w') as f:
             json.dump(self.employees, f, indent=4)
+        """Sauvegarde des employés dans le fichier JSON"""
+        try:
+            with open(self.employees_file, 'w', encoding='utf-8') as f:
+                json.dump(self.employees, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            st.error(f"Erreur lors de la sauvegarde des employés: {str(e)}")
 
     def save_scans(self):
         save_df = self.scans_df.copy()
         if 'DateTime' in save_df.columns:
             save_df = save_df.drop('DateTime', axis=1)
         save_df.to_csv(self.scans_file, index=False)
+        """Sauvegarde des pointages dans le fichier CSV"""
+        try:
+            save_df = self.scans_df.copy()
+            if 'DateTime' in save_df.columns:
+                save_df = save_df.drop('DateTime', axis=1)
+            save_df.to_csv(self.scans_file, index=False, encoding='utf-8')
+        except Exception as e:
+            st.error(f"Erreur lors de la sauvegarde des pointages: {str(e)}")
 
     def add_employee(self, id_emp, nom, prenom, code_barre):
+        """Ajout d'un nouvel employé"""
         if code_barre not in self.employees:
             self.employees[code_barre] = {
                 'id': id_emp,
@@ -62,19 +100,28 @@ class PointageSystem:
         return False
 
     def record_scan(self, code_barre):
+        """Enregistrement d'un pointage"""
         if code_barre in self.employees:
             emp = self.employees[code_barre]
+            if not emp['actif']:
+                return False, "Employé inactif"
+                
             current_time = datetime.now()
             date = current_time.strftime('%Y-%m-%d')
             heure = current_time.strftime('%H:%M:%S')
+            date_str = current_time.strftime('%Y-%m-%d')
+            heure_str = current_time.strftime('%H:%M:%S')
 
+            # Déterminer le type de scan
             aujourd_hui = self.scans_df[
                 (self.scans_df['Code_Barres'] == code_barre) & 
                 (self.scans_df['Date'] == date)
+                (self.scans_df['Date'] == date_str)
             ]
 
             type_scan = 'Entrée' if len(aujourd_hui) % 2 == 0 else 'Sortie'
 
+            # Créer le nouveau scan
             nouveau_scan = pd.DataFrame([{
                 'ID_Employé': emp['id'],
                 'Nom': emp['nom'],
@@ -82,14 +129,53 @@ class PointageSystem:
                 'Code_Barres': code_barre,
                 'Date': date,
                 'Heure': heure,
+                'Date': date_str,
+                'Heure': heure_str,
                 'Type_Scan': type_scan
             }])
 
+            # Ajouter le DateTime pour les calculs
+            nouveau_scan['DateTime'] = pd.to_datetime(
+                nouveau_scan['Date'] + ' ' + nouveau_scan['Heure']
+            )
+            
+            # Concaténer avec les données existantes
             self.scans_df = pd.concat([self.scans_df, nouveau_scan], ignore_index=True)
+            
+            # Sauvegarder immédiatement
             self.save_scans()
+            
             return True, f"{type_scan} enregistrée pour {emp['prenom']} {emp['nom']}"
         return False, "Code-barres non reconnu"
 
+    def backup_data(self):
+        """Création d'une sauvegarde des données"""
+        try:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_dir = self.data_dir / 'backups'
+            backup_dir.mkdir(exist_ok=True)
+            
+            # Sauvegarde des employés
+            employee_backup = backup_dir / f'employees_{timestamp}.json'
+            with open(employee_backup, 'w', encoding='utf-8') as f:
+                json.dump(self.employees, f, indent=4, ensure_ascii=False)
+            
+            # Sauvegarde des pointages
+            scans_backup = backup_dir / f'scans_{timestamp}.csv'
+            save_df = self.scans_df.copy()
+            if 'DateTime' in save_df.columns:
+                save_df = save_df.drop('DateTime', axis=1)
+            save_df.to_csv(scans_backup, index=False, encoding='utf-8')
+            
+            # Nettoyage des anciennes sauvegardes (garder les 5 dernières)
+            backup_files = sorted(list(backup_dir.glob('*.json')) + list(backup_dir.glob('*.csv')))
+            if len(backup_files) > 10:  # 5 sauvegardes * 2 fichiers
+                for old_file in backup_files[:-10]:
+                    old_file.unlink()
+                    
+            return True, "Sauvegarde créée avec succès"
+        except Exception as e:
+            return False, f"Erreur lors de la sauvegarde: {str(e)}"
     def calculate_daily_hours(self, employee_id, date):
         """Calcule les heures travaillées pour un employé sur une journée donnée"""
         day_scans = self.scans_df[
@@ -602,7 +688,7 @@ def show_reports_page():
                     st.success("Rapport exporté avec succès!")
             else:
                 st.info("Aucune donnée pour la période sélectionnée")
-                def setup_page_config():
+
 def setup_page_config():
     """Configuration initiale de la page Streamlit"""
     st.set_page_config(
@@ -663,9 +749,6 @@ def show_sidebar():
     with st.sidebar:
         st.title("Navigation")
 
-        # Logo ou image d'entreprise
-        st.image("https://via.placeholder.com/150", caption="Logo Entreprise")
-        
         # Menu de navigation
         pages = ["Pointage"]
         if st.session_state.admin:
