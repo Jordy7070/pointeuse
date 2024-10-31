@@ -96,7 +96,7 @@ class PointageSystem:
         except Exception as e:
             st.error(f"Erreur lors de la sauvegarde des pointages: {str(e)}")
 
-def add_employee(self, id_emp, nom, prenom, code_barre):
+    def add_employee(self, id_emp, nom, prenom, code_barre):
         """Ajout d'un nouvel employé"""
         if code_barre not in self.employees:
             self.employees[code_barre] = {
