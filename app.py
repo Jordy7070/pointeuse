@@ -602,7 +602,8 @@ def show_reports_page():
                     st.success("Rapport exporté avec succès!")
             else:
                 st.info("Aucune donnée pour la période sélectionnée")
-                def setup_page_config():
+
+def setup_page_config():
     """Configuration initiale de la page Streamlit"""
     st.set_page_config(
         page_title="Système de Pointage",
@@ -661,9 +662,6 @@ def show_sidebar():
     """Affichage et gestion de la barre latérale"""
     with st.sidebar:
         st.title("Navigation")
-        
-        # Logo ou image d'entreprise
-        st.image("https://via.placeholder.com/150", caption="Logo Entreprise")
         
         # Menu de navigation
         pages = ["Pointage"]
