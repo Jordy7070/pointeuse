@@ -7,6 +7,32 @@ from pathlib import Path
 import plotly.express as px
 from io import BytesIO
 
+# Configuration de la page - DOIT ÊTRE EN PREMIER
+st.set_page_config(
+    page_title="Système de Pointage",
+    page_icon="⏰",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Style CSS personnalisé
+st.markdown("""
+    <style>
+    .main {
+        padding-top: 2rem;
+    }
+    .stAlert {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+    }
+    .stMetric {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 class PointageSystem:
     def __init__(self):
         # Création des dossiers et fichiers nécessaires
@@ -17,12 +43,9 @@ class PointageSystem:
         self.load_data()
 
     def load_data(self):
-        # Chargement des employés
         """Chargement des données depuis les fichiers"""
         # Chargement des employés depuis le JSON
         if self.employees_file.exists():
-            with open(self.employees_file, 'r') as f:
-                self.employees = json.load(f)
             try:
                 with open(self.employees_file, 'r', encoding='utf-8') as f:
                     self.employees = json.load(f)
@@ -33,14 +56,8 @@ class PointageSystem:
             self.employees = {}
             self.save_employees()
 
-        # Chargement des pointages
         # Chargement des pointages depuis le CSV
         if self.scans_file.exists():
-            self.scans_df = pd.read_csv(self.scans_file)
-            # Conversion des colonnes de date et heure
-            self.scans_df['DateTime'] = pd.to_datetime(
-                self.scans_df['Date'] + ' ' + self.scans_df['Heure']
-            )
             try:
                 self.scans_df = pd.read_csv(self.scans_file)
                 # Conversion explicite des colonnes de date et heure
@@ -62,8 +79,6 @@ class PointageSystem:
             self.save_scans()
 
     def save_employees(self):
-        with open(self.employees_file, 'w') as f:
-            json.dump(self.employees, f, indent=4)
         """Sauvegarde des employés dans le fichier JSON"""
         try:
             with open(self.employees_file, 'w', encoding='utf-8') as f:
@@ -72,10 +87,6 @@ class PointageSystem:
             st.error(f"Erreur lors de la sauvegarde des employés: {str(e)}")
 
     def save_scans(self):
-        save_df = self.scans_df.copy()
-        if 'DateTime' in save_df.columns:
-            save_df = save_df.drop('DateTime', axis=1)
-        save_df.to_csv(self.scans_file, index=False)
         """Sauvegarde des pointages dans le fichier CSV"""
         try:
             save_df = self.scans_df.copy()
