@@ -728,7 +728,7 @@ def handle_authentication():
             st.title("Connexion")
             username = st.text_input("Utilisateur")
             password = st.text_input("Mot de passe", type="password")
-
+            
             if st.button("Se connecter"):
                 # Exemple simplifié - À remplacer par une vraie authentification
                 if username == "admin" and password == "admin":
@@ -745,32 +745,32 @@ def handle_authentication():
     return True
 
 def show_sidebar():
-
+    """Affichage et gestion de la barre latérale"""
     with st.sidebar:
         st.title("Navigation")
-
+        
         # Menu de navigation
         pages = ["Pointage"]
         if st.session_state.admin:
             pages.extend(["Administration", "Rapports"])
-
+        
         page = st.radio("", pages)
-
+        
         # Informations supplémentaires
         st.divider()
         st.caption(f"Date: {datetime.now().strftime('%d/%m/%Y')}")
         st.caption(f"Heure: {datetime.now().strftime('%H:%M:%S')}")
-
+        
         # Bouton de déconnexion
         if st.button("Déconnexion"):
             st.session_state.authenticated = False
             st.session_state.admin = False
             st.rerun()
-
+        
         return page
-        def main():
-            
-    # Configuration initiale
+
+def main():
+    """Fonction principale de l'application"""
     setup_page_config()
     
     # Vérification de l'authentification
@@ -805,3 +805,6 @@ def show_sidebar():
         st.error(f"Une erreur est survenue : {str(e)}")
         if st.session_state.admin:
             st.exception(e)
+
+if __name__ == "__main__":
+    main()
