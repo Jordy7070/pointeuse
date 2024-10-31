@@ -332,7 +332,22 @@ def show_reports_page():
                 # Export Excel
                 if st.download_button(
                     label="📥 Télécharger le rapport",
-                    data=df_daily.to_excel(index=False, engine='openpyxl'),
+                    import io  # Assurez-vous que cette importation est en haut de votre fichier
+
+# Création d'un flux en mémoire pour sauvegarder le fichier Excel
+excel_buffer = io.BytesIO()
+df_daily.to_excel(excel_buffer, index=False, engine='openpyxl')
+excel_buffer.seek(0)  # Repositionner au début du flux pour permettre la lecture
+
+# Utiliser le flux dans le bouton de téléchargement
+if st.download_button(
+    label="📥 Télécharger le rapport",
+    data=excel_buffer,
+    file_name=f'rapport_journalier_{date_str}.xlsx',
+    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+):
+    st.success("Rapport exporté avec succès!")
+
                     file_name=f'rapport_journalier_{date_str}.xlsx',
                     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                 ):
