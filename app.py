@@ -107,33 +107,28 @@ class PointageSystem:
                 return False, "Employé inactif"
                 
             current_time = datetime.now()
-            date = current_time.strftime('%Y-%m-%d')
-            heure = current_time.strftime('%H:%M:%S')
             date_str = current_time.strftime('%Y-%m-%d')
             heure_str = current_time.strftime('%H:%M:%S')
-
+            
             # Déterminer le type de scan
             aujourd_hui = self.scans_df[
-                (self.scans_df['Code_Barres'] == code_barre) & 
-                (self.scans_df['Date'] == date)
-                (self.scans_df['Date'] == date_str)
+                (self.scans_df['Code_Barres'].astype(str) == str(code_barre)) & 
+                (self.scans_df['Date'].astype(str) == date_str)
             ]
-
+            
             type_scan = 'Entrée' if len(aujourd_hui) % 2 == 0 else 'Sortie'
-
+            
             # Créer le nouveau scan
             nouveau_scan = pd.DataFrame([{
                 'ID_Employé': emp['id'],
                 'Nom': emp['nom'],
                 'Prénom': emp['prenom'],
                 'Code_Barres': code_barre,
-                'Date': date,
-                'Heure': heure,
                 'Date': date_str,
                 'Heure': heure_str,
                 'Type_Scan': type_scan
             }])
-
+            
             # Ajouter le DateTime pour les calculs
             nouveau_scan['DateTime'] = pd.to_datetime(
                 nouveau_scan['Date'] + ' ' + nouveau_scan['Heure']
