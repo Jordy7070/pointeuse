@@ -745,7 +745,7 @@ def handle_authentication():
     return True
 
 def show_sidebar():
-    """Affichage et gestion de la barre latérale"""
+
     with st.sidebar:
         st.title("Navigation")
 
@@ -769,7 +769,7 @@ def show_sidebar():
 
         return page
         def main():
-    """Fonction principale de l'application"""
+            
     # Configuration initiale
     setup_page_config()
     
