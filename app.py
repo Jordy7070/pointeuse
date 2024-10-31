@@ -254,7 +254,8 @@ def show_sidebar():
             st.rerun()
         
         return page
-        def show_pointage_page():
+        
+       def show_pointage_page():
     st.title("Pointage")
 
     col1, col2 = st.columns([2, 1])
@@ -361,6 +362,7 @@ def show_reports_page():
                 )
             else:
                 st.info("Aucune donnée pour cette date")
+
                 with tabs[1]:  # Rapport Hebdomadaire
         st.subheader("Rapport Hebdomadaire")
         week_date = st.date_input("Sélectionnez une date dans la semaine", value=datetime.now(), key="week_select")
