@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import plotly.express as px
 from io import BytesIO
+import openpyxl
 
 class PointageSystem:
     def __init__(self):
