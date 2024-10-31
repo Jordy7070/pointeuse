@@ -231,94 +231,148 @@ def show_admin_page():
             df_employees = pd.DataFrame(st.session_state.system.employees.values())
             st.dataframe(df_employees)
 
+def export_dataframe_to_excel(df):
+    """Fonction utilitaire pour exporter un DataFrame en Excel"""
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False)
+    return buffer.getvalue()
+
 def show_reports_page():
     st.title("Rapports et Analyses")
     
-    tabs = st.tabs(["Journalier", "Hebdomadaire", "Mensuel", "Personnalisé"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Journalier", "Hebdomadaire", "Mensuel", "Personnalisé"])
     
-    with tabs[0]:  # Rapport Journalier
+    with tab1:
         st.subheader("Rapport Journalier")
-        selected_date = st.date_input(
-            "Sélectionnez une date",
-            value=datetime.now()
-        )
+        selected_date = st.date_input("Sélectionnez une date", value=datetime.now())
+        date_str = selected_date.strftime('%Y-%m-%d')
         
         if st.button("Générer rapport journalier"):
-            date_str = selected_date.strftime('%Y-%m-%d')
+            # Récupération des données
             daily_data = []
-            
             for code_barre, emp in st.session_state.system.employees.items():
-                # Récupérer tous les scans de la journée
-                day_scans = st.session_state.system.scans_df[
-                    (st.session_state.system.scans_df['ID_Employé'] == emp['id']) & 
-                    (st.session_state.system.scans_df['Date'] == date_str)
-                ].sort_values('DateTime')
-                
-                if not day_scans.empty:
-                    # Calculer les heures travaillées
-                    total_hours = st.session_state.system.calculate_daily_hours(emp['id'], date_str)
-                    
-                    # Calculer le temps de pause
-                    pause_time = 0
-                    entry_time = None
-                    for _, scan in day_scans.iterrows():
-                        if scan['Type_Scan'] == 'Sortie':
-                            entry_time = pd.to_datetime(scan['Date'] + ' ' + scan['Heure'])
-                        elif scan['Type_Scan'] == 'Entrée' and entry_time is not None:
-                            exit_time = pd.to_datetime(scan['Date'] + ' ' + scan['Heure'])
-                            pause_time += (exit_time - entry_time).total_seconds() / 3600
-                    
-                    # Première et dernière entrée
-                    first_scan = day_scans.iloc[0]
-                    last_scan = day_scans.iloc[-1]
-                    
+                hours = st.session_state.system.calculate_daily_hours(emp['id'], date_str)
+                if hours > 0:
                     daily_data.append({
-                        'Employé': f"{emp['prenom']} {emp['nom']}",
-                        'Heure Arrivée': first_scan['Heure'],
-                        'Heure Départ': last_scan['Heure'],
-                        'Heures Travaillées': round(total_hours, 2),
-                        'Temps de Pause': round(pause_time, 2),
-                        'Heures Effectives': round(total_hours - pause_time, 2)
+                        'Nom': emp['nom'],
+                        'Prénom': emp['prenom'],
+                        'Heures': round(hours, 2)
                     })
             
             if daily_data:
                 df_daily = pd.DataFrame(daily_data)
-                
-                # Affichage des statistiques
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total Heures Travaillées", 
-                             f"{df_daily['Heures Travaillées'].sum():.2f}h")
-                with col2:
-                    st.metric("Moyenne Heures/Employé", 
-                             f"{df_daily['Heures Travaillées'].mean():.2f}h")
-                with col3:
-                    st.metric("Employés Présents", 
-                             len(df_daily))
-                
-                # Graphique des heures par employé
-                fig = px.bar(
-                    df_daily,
-                    x='Employé',
-                    y=['Heures Effectives', 'Temps de Pause'],
-                    title=f"Répartition du temps de travail - {date_str}",
-                    barmode='stack'
-                )
-                st.plotly_chart(fig)
-                
-                # Tableau détaillé
+                st.write("Données du rapport :")
                 st.dataframe(df_daily)
                 
                 # Export Excel
-                if st.download_button(
+                excel_data = export_dataframe_to_excel(df_daily)
+                st.download_button(
                     label="📥 Télécharger le rapport",
-                    data=df_daily.to_excel(index=False, engine='openpyxl'),
-                    file_name=f'rapport_journalier_{date_str}.xlsx',
-                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                ):
-                    st.success("Rapport exporté avec succès!")
+                    data=excel_data,
+                    file_name=f"rapport_journalier_{date_str}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
             else:
                 st.info("Aucune donnée pour cette date")
+    
+    with tab2:
+        st.subheader("Rapport Hebdomadaire")
+        week_date = st.date_input("Sélectionnez une date dans la semaine", value=datetime.now())
+        
+        if st.button("Générer rapport hebdomadaire"):
+            # Calcul début et fin de semaine
+            start_week = week_date - timedelta(days=week_date.weekday())
+            end_week = start_week + timedelta(days=6)
+            
+            weekly_data = []
+            for code_barre, emp in st.session_state.system.employees.items():
+                weekly_hours = 0
+                current_date = start_week
+                while current_date <= end_week:
+                    hours = st.session_state.system.calculate_daily_hours(
+                        emp['id'], 
+                        current_date.strftime('%Y-%m-%d')
+                    )
+                    weekly_hours += hours
+                    current_date += timedelta(days=1)
+                
+                if weekly_hours > 0:
+                    weekly_data.append({
+                        'Nom': emp['nom'],
+                        'Prénom': emp['prenom'],
+                        'Total Heures': round(weekly_hours, 2)
+                    })
+            
+            if weekly_data:
+                df_weekly = pd.DataFrame(weekly_data)
+                st.write("Données du rapport :")
+                st.dataframe(df_weekly)
+                
+                # Export Excel
+                excel_data = export_dataframe_to_excel(df_weekly)
+                st.download_button(
+                    label="📥 Télécharger le rapport",
+                    data=excel_data,
+                    file_name=f"rapport_hebdomadaire_{start_week.strftime('%Y-%m-%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.info("Aucune donnée pour cette semaine")
+    
+    with tab3:
+        st.subheader("Rapport Mensuel")
+        col1, col2 = st.columns(2)
+        with col1:
+            selected_year = st.selectbox("Année", 
+                                       options=list(range(datetime.now().year-2, 
+                                                        datetime.now().year+1)))
+        with col2:
+            selected_month = st.selectbox("Mois", 
+                                        options=list(range(1, 13)),
+                                        format_func=lambda x: datetime(2000, x, 1).strftime('%B'))
+        
+        if st.button("Générer rapport mensuel"):
+            monthly_data = []
+            for code_barre, emp in st.session_state.system.employees.items():
+                total_hours = 0
+                days_worked = 0
+                
+                current_date = datetime(selected_year, selected_month, 1)
+                while current_date.month == selected_month:
+                    hours = st.session_state.system.calculate_daily_hours(
+                        emp['id'],
+                        current_date.strftime('%Y-%m-%d')
+                    )
+                    if hours > 0:
+                        total_hours += hours
+                        days_worked += 1
+                    current_date += timedelta(days=1)
+                
+                if total_hours > 0:
+                    monthly_data.append({
+                        'Nom': emp['nom'],
+                        'Prénom': emp['prenom'],
+                        'Jours Travaillés': days_worked,
+                        'Total Heures': round(total_hours, 2),
+                        'Moyenne Heures/Jour': round(total_hours/days_worked, 2)
+                    })
+            
+            if monthly_data:
+                df_monthly = pd.DataFrame(monthly_data)
+                st.write("Données du rapport :")
+                st.dataframe(df_monthly)
+                
+                # Export Excel
+                excel_data = export_dataframe_to_excel(df_monthly)
+                st.download_button(
+                    label="📥 Télécharger le rapport",
+                    data=excel_data,
+                    file_name=f"rapport_mensuel_{selected_year}_{selected_month:02d}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.info("Aucune donnée pour ce mois")
     
     with tabs[1]:  # Rapport Hebdomadaire
         st.subheader("Rapport Hebdomadaire")
