@@ -5,10 +5,7 @@ import json
 import os
 from pathlib import Path
 import plotly.express as px
-import plotly.graph_objects as go
-import base64
 from io import BytesIO
-from collections import defaultdict
 
 class PointageSystem:
     def __init__(self):
@@ -51,6 +48,48 @@ class PointageSystem:
             save_df = save_df.drop('DateTime', axis=1)
         save_df.to_csv(self.scans_file, index=False)
 
+    def add_employee(self, id_emp, nom, prenom, code_barre):
+        if code_barre not in self.employees:
+            self.employees[code_barre] = {
+                'id': id_emp,
+                'nom': nom,
+                'prenom': prenom,
+                'code_barre': code_barre,
+                'actif': True
+            }
+            self.save_employees()
+            return True
+        return False
+
+    def record_scan(self, code_barre):
+        if code_barre in self.employees:
+            emp = self.employees[code_barre]
+            current_time = datetime.now()
+            date = current_time.strftime('%Y-%m-%d')
+            heure = current_time.strftime('%H:%M:%S')
+            
+            aujourd_hui = self.scans_df[
+                (self.scans_df['Code_Barres'] == code_barre) & 
+                (self.scans_df['Date'] == date)
+            ]
+            
+            type_scan = 'Entrée' if len(aujourd_hui) % 2 == 0 else 'Sortie'
+            
+            nouveau_scan = pd.DataFrame([{
+                'ID_Employé': emp['id'],
+                'Nom': emp['nom'],
+                'Prénom': emp['prenom'],
+                'Code_Barres': code_barre,
+                'Date': date,
+                'Heure': heure,
+                'Type_Scan': type_scan
+            }])
+            
+            self.scans_df = pd.concat([self.scans_df, nouveau_scan], ignore_index=True)
+            self.save_scans()
+            return True, f"{type_scan} enregistrée pour {emp['prenom']} {emp['nom']}"
+        return False, "Code-barres non reconnu"
+
     def calculate_daily_hours(self, employee_id, date):
         """Calcule les heures travaillées pour un employé sur une journée donnée"""
         day_scans = self.scans_df[
@@ -63,57 +102,17 @@ class PointageSystem:
 
         for _, scan in day_scans.iterrows():
             if scan['Type_Scan'] == 'Entrée':
-                entry_time = scan['DateTime']
+                entry_time = pd.to_datetime(scan['Date'] + ' ' + scan['Heure'])
             elif scan['Type_Scan'] == 'Sortie' and entry_time is not None:
-                total_hours += scan['DateTime'] - entry_time
+                exit_time = pd.to_datetime(scan['Date'] + ' ' + scan['Heure'])
+                total_hours += exit_time - entry_time
                 entry_time = None
 
-        return total_hours.total_seconds() / 3600  # Conversion en heures
-
-    def calculate_monthly_hours(self, employee_id, year, month):
-        """Calcule les heures travaillées pour un employé sur un mois donné"""
-        monthly_scans = self.scans_df[
-            (self.scans_df['ID_Employé'] == employee_id) & 
-            (pd.to_datetime(self.scans_df['Date']).dt.year == year) &
-            (pd.to_datetime(self.scans_df['Date']).dt.month == month)
-        ]
-
-        daily_hours = defaultdict(float)
-        dates = sorted(monthly_scans['Date'].unique())
-        
-        for date in dates:
-            hours = self.calculate_daily_hours(employee_id, date)
-            daily_hours[date] = hours
-
-        return daily_hours
-
-    def generate_monthly_report(self, year, month):
-        """Génère un rapport mensuel pour tous les employés"""
-        report_data = []
-        
-        for code_barre, emp in self.employees.items():
-            monthly_hours = self.calculate_monthly_hours(emp['id'], year, month)
-            total_hours = sum(monthly_hours.values())
-            working_days = len(monthly_hours)
-            
-            report_data.append({
-                'ID_Employé': emp['id'],
-                'Nom': emp['nom'],
-                'Prénom': emp['prenom'],
-                'Jours_Travaillés': working_days,
-                'Total_Heures': round(total_hours, 2),
-                'Moyenne_Heures/Jour': round(total_hours / working_days if working_days > 0 else 0, 2)
-            })
-            
-        return pd.DataFrame(report_data)
+        return total_hours.total_seconds() / 3600
 
 def show_pointage_page():
     st.title("Pointage")
     
-    # Affichage de l'heure actuelle
-    st.write(f"Date et heure : {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-    
-    # Zone de scan
     col1, col2 = st.columns([2, 1])
     
     with col1:
@@ -129,8 +128,8 @@ def show_pointage_page():
     
     with col2:
         st.subheader("Derniers pointages")
-        recent_scans = st.session_state.system.scans_df.tail(5)
-        if not recent_scans.empty:
+        if not st.session_state.system.scans_df.empty:
+            recent_scans = st.session_state.system.scans_df.tail(5)
             for _, scan in recent_scans.iloc[::-1].iterrows():
                 st.write(f"{scan['Prénom']} {scan['Nom']} - {scan['Type_Scan']} à {scan['Heure']}")
 
@@ -165,136 +164,94 @@ def show_admin_page():
         if st.session_state.system.employees:
             df_employees = pd.DataFrame(st.session_state.system.employees.values())
             st.dataframe(df_employees)
-            
-            if st.button("Exporter la liste"):
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df_employees.to_excel(writer, index=False)
-                excel_data = output.getvalue()
-                st.download_button(
-                    label="Télécharger Excel",
-                    data=excel_data,
-                    file_name="employees.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-        else:
-            st.info("Aucun employé enregistré")
 
 def show_reports_page():
     st.title("Rapports et Analyses")
     
-    tab1, tab2 = st.tabs(["Rapport Journalier", "Rapport Mensuel"])
+    # Correction : Création d'une liste d'années
+    current_year = datetime.now().year
+    years = list(range(current_year - 5, current_year + 1))
+    months = list(range(1, 13))
     
-    with tab1:
-        st.subheader("Heures travaillées par jour")
-        selected_date = st.date_input("Sélectionnez la date")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        selected_year = st.selectbox("Année", options=years, index=len(years)-1)
+    
+    with col2:
+        selected_month = st.selectbox(
+            "Mois",
+            options=months,
+            format_func=lambda x: datetime.strptime(str(x), "%m").strftime("%B"),
+            index=datetime.now().month-1
+        )
+    
+    if st.button("Générer rapport"):
+        # Filtrer les données pour le mois sélectionné
+        report_data = []
         
-        if selected_date:
-            date_str = selected_date.strftime('%Y-%m-%d')
-            daily_report = []
+        for code_barre, emp in st.session_state.system.employees.items():
+            monthly_hours = 0
+            current_date = datetime(selected_year, selected_month, 1)
             
-            for code_barre, emp in st.session_state.system.employees.items():
+            while current_date.month == selected_month:
+                date_str = current_date.strftime('%Y-%m-%d')
                 hours = st.session_state.system.calculate_daily_hours(emp['id'], date_str)
-                if hours > 0:
-                    daily_report.append({
-                        'Nom': f"{emp['prenom']} {emp['nom']}",
-                        'Heures': round(hours, 2)
-                    })
+                monthly_hours += hours
+                current_date += timedelta(days=1)
             
-            if daily_report:
-                df_daily = pd.DataFrame(daily_report)
-                
-                # Affichage graphique
-                fig = px.bar(df_daily, x='Nom', y='Heures',
-                           title=f"Heures travaillées le {date_str}")
-                st.plotly_chart(fig)
-                
-                # Affichage tableau
-                st.dataframe(df_daily)
-                
-                # Export Excel
-                if st.button("Exporter le rapport journalier"):
-                    output = BytesIO()
-                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        df_daily.to_excel(writer, sheet_name='Rapport Journalier', index=False)
-                    excel_data = output.getvalue()
-                    st.download_button(
-                        label="Télécharger Excel",
-                        data=excel_data,
-                        file_name=f'rapport_journalier_{date_str}.xlsx',
-                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                    )
-            else:
-                st.info("Aucune donnée pour cette date")
-    
-    with tab2:
-        st.subheader("Rapport Mensuel")
+            if monthly_hours > 0:
+                report_data.append({
+                    'Employé': f"{emp['prenom']} {emp['nom']}",
+                    'Heures': round(monthly_hours, 2)
+                })
         
-        col1, col2 = st.columns(2)
-        with col1:
-            selected_year = st.selectbox("Année", 
-                                       options=range(2020, datetime.now().year + 1),
-                                       default=datetime.now().year)
-        with col2:
-            selected_month = st.selectbox("Mois", 
-                                        options=range(1, 13),
-                                        default=datetime.now().month)
-        
-        if st.button("Générer le rapport mensuel"):
-            monthly_report = st.session_state.system.generate_monthly_report(
-                selected_year, selected_month
+        if report_data:
+            df_report = pd.DataFrame(report_data)
+            
+            # Graphique
+            fig = px.bar(
+                df_report,
+                x='Employé',
+                y='Heures',
+                title=f"Heures travaillées - {datetime(selected_year, selected_month, 1).strftime('%B %Y')}"
             )
+            st.plotly_chart(fig)
             
-            if not monthly_report.empty:
-                # Affichage graphique
-                fig = px.bar(monthly_report, 
-                           x='Nom',
-                           y='Total_Heures',
-                           title=f"Heures totales - {selected_month}/{selected_year}")
-                st.plotly_chart(fig)
+            # Tableau
+            st.dataframe(df_report)
+            
+            # Export Excel
+            if st.button("Exporter en Excel"):
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df_report.to_excel(writer, index=False)
+                excel_data = output.getvalue()
                 
-                # Affichage tableau détaillé
-                st.dataframe(monthly_report)
-                
-                # Export Excel
-                if st.button("Exporter le rapport mensuel"):
-                    output = BytesIO()
-                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        monthly_report.to_excel(writer, 
-                                             sheet_name='Rapport Mensuel',
-                                             index=False)
-                    excel_data = output.getvalue()
-                    st.download_button(
-                        label="Télécharger Excel",
-                        data=excel_data,
-                        file_name=f'rapport_mensuel_{selected_month}_{selected_year}.xlsx',
-                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                    )
-            else:
-                st.info("Aucune donnée pour cette période")
+                st.download_button(
+                    label="Télécharger le rapport",
+                    data=excel_data,
+                    file_name=f'rapport_{selected_year}_{selected_month}.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+        else:
+            st.info("Aucune donnée pour la période sélectionnée")
 
 def main():
-    st.set_page_config(
-        page_title="Système de Pointage",
-        page_icon="⏰",
-        layout="wide"
-    )
+    st.set_page_config(page_title="Système de Pointage", layout="wide")
     
-    # Initialisation du système
     if 'system' not in st.session_state:
         st.session_state.system = PointageSystem()
-
-    # Menu latéral
+    
     with st.sidebar:
         st.title("Navigation")
         page = st.radio("", ["Pointage", "Administration", "Rapports"])
-
-    # Navigation entre les pages
+    
     if page == "Pointage":
         show_pointage_page()
     elif page == "Administration":
         show_admin_page()
-    elif page == "Rapports":
+    else:
         show_reports_page()
 
 if __name__ == "__main__":
