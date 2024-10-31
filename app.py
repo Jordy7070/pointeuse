@@ -329,10 +329,7 @@ def show_reports_page():
                 # Tableau détaillé
                 st.dataframe(df_daily)
 
-                # Export Excel
-                if st.download_button(
-                    label="📥 Télécharger le rapport",
-                    import io  # Assurez-vous que cette importation est en haut de votre fichier
+                import io  # Assurez-vous que cette importation est en haut de votre fichier
 
 # Création d'un flux en mémoire pour sauvegarder le fichier Excel
 excel_buffer = io.BytesIO()
@@ -347,6 +344,7 @@ if st.download_button(
     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 ):
     st.success("Rapport exporté avec succès!")
+
 
                     file_name=f'rapport_journalier_{date_str}.xlsx',
                     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
