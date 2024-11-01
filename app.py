@@ -1,5 +1,4 @@
-# Fichier: main.py
-
+# app.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -135,7 +134,6 @@ class PointageSystem:
             )
             
             self.scans_df = pd.concat([self.scans_df, nouveau_scan], ignore_index=True)
-            
             self.save_scans()
             
             return True, f"{type_scan} enregistrée pour {emp['prenom']} {emp['nom']}"
@@ -331,22 +329,17 @@ def handle_authentication():
 def show_sidebar():
     with st.sidebar:
         st.title("Navigation")
-
         pages = ["Pointage"]
         if st.session_state.admin:
             pages.extend(["Administration", "Rapports"])
-
         page = st.radio("", pages)
-
         st.divider()
         st.caption(f"Date: {datetime.now().strftime('%d/%m/%Y')}")
         st.caption(f"Heure: {datetime.now().strftime('%H:%M:%S')}")
-
-    if st.button("Déconnexion"):
-            st.session_state.authenticated = False
+        if st.button("Déconnexion"):
+        st.session_state.authenticated = False
             st.session_state.admin = False
             st.rerun()
-
         return page
 
 def main():
@@ -373,4 +366,4 @@ def main():
             st.exception(e)
 
 if __name__ == "__main__":
-    main()
+    main()    
