@@ -201,25 +201,29 @@ def show_pointage_page():
     with col1:
         st.subheader("Scanner votre badge")
         
-        # Utilisation d'un placeholder unique
-        scan_placeholder = st.empty()
+        # Initialisation du compteur de scan si nécessaire
+        if 'scan_counter' not in st.session_state:
+            st.session_state.scan_counter = 0
+            
+        # Création d'une clé unique basée sur le compteur
+        scan_key = f"scan_input_{st.session_state.scan_counter}"
         
-        # Champ de scan avec clé unique
-        scan_input = scan_placeholder.text_input(
+        # Champ de scan
+        scan_input = st.text_input(
             "",
+            key=scan_key,
             help="Scannez votre badge",
             placeholder="Scanner ici...",
-            label_visibility="collapsed",
-            key="scan_field"
+            label_visibility="collapsed"
         )
 
         if scan_input:
             success, message = st.session_state.system.record_scan(scan_input)
             if success:
-                # Afficher le message de succès
                 st.toast(message, icon="✅")
-                # Réinitialiser le champ
-                st.session_state["scan_field"] = ""
+                # Incrémentation du compteur pour forcer un nouveau champ
+                st.session_state.scan_counter += 1
+                st.rerun()
             else:
                 st.error(message)
 
@@ -245,14 +249,22 @@ def show_pointage_page():
             scans_html += "</div>"
             last_scans_placeholder.markdown(scans_html, unsafe_allow_html=True)
 
-        # Refresh automatique toutes les 5 secondes
-        if 'last_refresh' not in st.session_state:
-            st.session_state.last_refresh = time.time()
-        
-        current_time = time.time()
-        if current_time - st.session_state.last_refresh > 5:
-            st.session_state.last_refresh = current_time
-            st.rerun()
+    # Script pour maintenir le focus
+    st.markdown("""
+        <script>
+            const setFocus = () => {
+                const input = document.querySelector('input[type="text"]');
+                if (input) {
+                    input.focus();
+                }
+            };
+            
+            // Appliquer le focus immédiatement et après chaque action
+            setFocus();
+            document.addEventListener('click', setFocus);
+            document.addEventListener('keyup', setFocus);
+        </script>
+    """, unsafe_allow_html=True)
 
 def show_admin_page():
     st.title("Administration")
