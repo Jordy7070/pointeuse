@@ -185,13 +185,24 @@ def show_pointage_page():
 
     with col1:
         st.subheader("Scanner votre badge")
-        scan_input = st.text_input("", key="scan_input", help="Scannez votre badge")
+        
+        # Gestion de la clé unique pour le champ de saisie
+        if 'scan_count' not in st.session_state:
+            st.session_state.scan_count = 0
+            
+        # Utilisation d'une clé dynamique pour forcer la réinitialisation
+        scan_input = st.text_input(
+            "", 
+            key=f"scan_input_{st.session_state.scan_count}",
+            help="Scannez votre badge"
+        )
 
         if scan_input:
             success, message = st.session_state.system.record_scan(scan_input)
             if success:
                 st.success(message)
-                st.session_state.scan_input = ""
+                # Incrémenter le compteur pour forcer une nouvelle clé
+                st.session_state.scan_count += 1
                 st.rerun()
             else:
                 st.error(message)
