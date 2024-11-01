@@ -183,10 +183,9 @@ class PointageSystem:
 def show_pointage_page():
     st.title("Pointage")
 
-    # CSS pour maintenir le focus
+    # CSS pour le focus
     st.markdown("""
         <style>
-        /* CSS pour maintenir le focus sur le champ de saisie */
         div[data-baseweb="input"] input {
             background-color: #f0f8ff;
         }
@@ -195,46 +194,32 @@ def show_pointage_page():
             border-color: #4CAF50;
         }
         </style>
-        <!-- Script pour maintenir le focus -->
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                var inputElement = document.querySelector('input[type="text"]');
-                if (inputElement) {
-                    inputElement.focus();
-                }
-            });
-        </script>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([2, 1])
 
     with col1:
         st.subheader("Scanner votre badge")
-        placeholder = st.empty()
         
-        # Champ de scan unique et persistant
-        scan_input = placeholder.text_input(
+        # Utilisation d'un placeholder unique
+        scan_placeholder = st.empty()
+        
+        # Champ de scan avec clé unique
+        scan_input = scan_placeholder.text_input(
             "",
-            key="scan_input",
             help="Scannez votre badge",
             placeholder="Scanner ici...",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            key="scan_field"
         )
 
         if scan_input:
             success, message = st.session_state.system.record_scan(scan_input)
             if success:
-                # Afficher le message de succès sans recharger la page
+                # Afficher le message de succès
                 st.toast(message, icon="✅")
-                # Vider le champ sans recharger la page
-                placeholder.text_input(
-                    "",
-                    key="scan_input",
-                    help="Scannez votre badge",
-                    placeholder="Scanner ici...",
-                    label_visibility="collapsed",
-                    value=""
-                )
+                # Réinitialiser le champ
+                st.session_state["scan_field"] = ""
             else:
                 st.error(message)
 
@@ -248,9 +233,9 @@ def show_pointage_page():
             for _, scan in recent_scans.iloc[::-1].iterrows():
                 scan_time = datetime.strptime(scan['Heure'], '%H:%M:%S').strftime('%H:%M:%S')
                 if scan['Type_Scan'] == 'Entrée':
-                    color = '#28a745'  # Vert pour entrée
+                    color = '#28a745'
                 else:
-                    color = '#dc3545'  # Rouge pour sortie
+                    color = '#dc3545'
                 scans_html += f"""
                     <div style='margin-bottom: 8px; padding: 5px; border-left: 3px solid {color};'>
                         <strong>{scan['Prénom']} {scan['Nom']}</strong><br/>
@@ -260,15 +245,14 @@ def show_pointage_page():
             scans_html += "</div>"
             last_scans_placeholder.markdown(scans_html, unsafe_allow_html=True)
 
-    # Ajout d'un auto-refresh pour les derniers pointages
-    if 'last_refresh' not in st.session_state:
-        st.session_state.last_refresh = time.time()
-    
-    current_time = time.time()
-    if current_time - st.session_state.last_refresh > 5:  # Refresh toutes les 5 secondes
-        st.session_state.last_refresh = current_time
-        time.sleep(0.1)  # Petit délai pour éviter une charge excessive
-        st.rerun()
+        # Refresh automatique toutes les 5 secondes
+        if 'last_refresh' not in st.session_state:
+            st.session_state.last_refresh = time.time()
+        
+        current_time = time.time()
+        if current_time - st.session_state.last_refresh > 5:
+            st.session_state.last_refresh = current_time
+            st.rerun()
 
 def show_admin_page():
     st.title("Administration")
