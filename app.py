@@ -332,14 +332,18 @@ def show_sidebar():
         pages = ["Pointage"]
         if st.session_state.admin:
             pages.extend(["Administration", "Rapports"])
+        
         page = st.radio("", pages)
+        
         st.divider()
         st.caption(f"Date: {datetime.now().strftime('%d/%m/%Y')}")
         st.caption(f"Heure: {datetime.now().strftime('%H:%M:%S')}")
+        
         if st.button("Déconnexion"):
-        st.session_state.authenticated = False
+            st.session_state.authenticated = False
             st.session_state.admin = False
             st.rerun()
+        
         return page
 
 def main():
@@ -366,4 +370,4 @@ def main():
             st.exception(e)
 
 if __name__ == "__main__":
-    main()    
+    main()
