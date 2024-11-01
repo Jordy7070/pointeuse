@@ -183,15 +183,22 @@ class PointageSystem:
 def show_pointage_page():
     st.title("Pointage")
 
-    # CSS pour le focus
+    # CSS pour optimiser le scan en masse
     st.markdown("""
         <style>
+        /* Optimisation pour le scan en masse */
         div[data-baseweb="input"] input {
             background-color: #f0f8ff;
+            border: 2px solid #4CAF50;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 16px;
+            width: 100%;
         }
         div[data-baseweb="input"] input:focus {
-            box-shadow: 0 0 5px #4CAF50;
-            border-color: #4CAF50;
+            box-shadow: none;
+            outline: none;
+            border-color: #45a049;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -201,27 +208,24 @@ def show_pointage_page():
     with col1:
         st.subheader("Scanner votre badge")
         
-        # Initialisation du compteur de scan si nécessaire
+        # Initialisation du compteur
         if 'scan_counter' not in st.session_state:
             st.session_state.scan_counter = 0
-            
-        # Création d'une clé unique basée sur le compteur
-        scan_key = f"scan_input_{st.session_state.scan_counter}"
         
-        # Champ de scan
+        # Champ de scan sans validation
         scan_input = st.text_input(
             "",
-            key=scan_key,
-            help="Scannez votre badge",
-            placeholder="Scanner ici...",
-            label_visibility="collapsed"
+            key=f"scan_input_{st.session_state.scan_counter}",
+            label_visibility="collapsed",
+            on_change=lambda: None,  # Désactive la validation par Enter
+            max_chars=20  # Limite pour éviter les problèmes de buffer
         )
 
-        if scan_input:
+        if len(scan_input) >= 5:  # Longueur minimale d'un code-barres
             success, message = st.session_state.system.record_scan(scan_input)
             if success:
                 st.toast(message, icon="✅")
-                # Incrémentation du compteur pour forcer un nouveau champ
+                # Force le nouveau scan
                 st.session_state.scan_counter += 1
                 st.rerun()
             else:
@@ -229,40 +233,48 @@ def show_pointage_page():
 
     with col2:
         st.subheader("Derniers pointages")
-        last_scans_placeholder = st.empty()
-        
         if not st.session_state.system.scans_df.empty:
             recent_scans = st.session_state.system.scans_df.tail(5)
-            scans_html = "<div style='background-color: #f8f9fa; padding: 10px; border-radius: 5px;'>"
             for _, scan in recent_scans.iloc[::-1].iterrows():
-                scan_time = datetime.strptime(scan['Heure'], '%H:%M:%S').strftime('%H:%M:%S')
                 if scan['Type_Scan'] == 'Entrée':
                     color = '#28a745'
                 else:
                     color = '#dc3545'
-                scans_html += f"""
-                    <div style='margin-bottom: 8px; padding: 5px; border-left: 3px solid {color};'>
+                st.markdown(
+                    f"""
+                    <div style='
+                        padding: 8px; 
+                        margin-bottom: 5px;
+                        border-left: 4px solid {color};
+                        background-color: #f8f9fa;
+                    '>
                         <strong>{scan['Prénom']} {scan['Nom']}</strong><br/>
-                        <span style='color: {color};'>{scan['Type_Scan']}</span> à {scan_time}
+                        <span style='color: {color};'>{scan['Type_Scan']}</span> à {scan['Heure']}
                     </div>
-                """
-            scans_html += "</div>"
-            last_scans_placeholder.markdown(scans_html, unsafe_allow_html=True)
+                    """,
+                    unsafe_allow_html=True
+                )
 
-    # Script pour maintenir le focus
+    # Script pour focus automatique
     st.markdown("""
         <script>
-            const setFocus = () => {
+            function setFocusToInput() {
                 const input = document.querySelector('input[type="text"]');
                 if (input) {
                     input.focus();
                 }
-            };
+            }
             
-            // Appliquer le focus immédiatement et après chaque action
-            setFocus();
-            document.addEventListener('click', setFocus);
-            document.addEventListener('keyup', setFocus);
+            // Focus initial
+            setFocusToInput();
+            
+            // Maintenir le focus
+            setInterval(setFocusToInput, 100);
+            
+            // Capture des événements
+            document.addEventListener('click', function(e) {
+                setTimeout(setFocusToInput, 0);
+            });
         </script>
     """, unsafe_allow_html=True)
 
