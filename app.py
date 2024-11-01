@@ -177,10 +177,6 @@ class PointageSystem:
 
         return output.getvalue()
 
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-from pathlib import Path
 
 def show_pointage_page():
     st.title("Pointage")
