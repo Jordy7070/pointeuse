@@ -2,32 +2,11 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import json
-import os
 from pathlib import Path
 import plotly.express as px
 from io import BytesIO
 import openpyxl
 import pytz
-
-@st.cache_data(persist=True)
-def load_employees(file_path):
-    if file_path.exists():
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    else:
-        return {}
-
-@st.cache_data(persist=True)
-def load_scans(file_path):
-    if file_path.exists():
-        df = pd.read_csv(file_path)
-        df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Heure'])
-        return df
-    else:
-        return pd.DataFrame(columns=[
-            'ID_Employé', 'Nom', 'Prénom', 'Code_Barres', 
-            'Date', 'Heure', 'Type_Scan', 'DateTime'
-        ])
 
 class PointageSystem:
     def __init__(self):
@@ -37,11 +16,7 @@ class PointageSystem:
         self.scans_file = self.data_dir / "scans.csv"
         self.archive_dir = self.data_dir / "archives"
         self.archive_dir.mkdir(exist_ok=True)
-        
-        # Chargement des données en cache
-        self.employees = load_employees(self.employees_file)
-        self.scans_df = load_scans(self.scans_file)
-        
+        self.load_data()
         self.cleanup_old_data()
 
     def cleanup_old_data(self):
@@ -55,6 +30,24 @@ class PointageSystem:
                 old_data.to_excel(writer, index=False, sheet_name='Pointages')
                 pd.DataFrame(self.employees).to_excel(writer, index=False, sheet_name='Employés')
             self.scans_df = self.scans_df[self.scans_df['DateTime'] >= one_year_ago]
+            self.save_scans()
+
+    def load_data(self):
+        if self.employees_file.exists():
+            with open(self.employees_file, 'r', encoding='utf-8') as f:
+                self.employees = json.load(f)
+        else:
+            self.employees = {}
+            self.save_employees()
+
+        if self.scans_file.exists():
+            self.scans_df = pd.read_csv(self.scans_file)
+            self.scans_df['DateTime'] = pd.to_datetime(self.scans_df['Date'] + ' ' + self.scans_df['Heure'])
+        else:
+            self.scans_df = pd.DataFrame(columns=[
+                'ID_Employé', 'Nom', 'Prénom', 'Code_Barres', 
+                'Date', 'Heure', 'Type_Scan', 'DateTime'
+            ])
             self.save_scans()
 
     def save_employees(self):
@@ -89,18 +82,6 @@ class PointageSystem:
             return True, f"{type_scan} enregistrée pour {emp['prenom']} {emp['nom']}"
         return False, "Code-barres non reconnu"
 
-    def calculate_daily_hours(self, employee_id, date):
-        scans = self.scans_df[(self.scans_df['ID_Employé'] == employee_id) & (self.scans_df['Date'] == date)]
-        total_hours = timedelta()
-        entry_time = None
-        for _, scan in scans.iterrows():
-            if scan['Type_Scan'] == 'Entrée':
-                entry_time = scan['DateTime']
-            elif scan['Type_Scan'] == 'Sortie' and entry_time:
-                total_hours += scan['DateTime'] - entry_time
-                entry_time = None
-        return total_hours.total_seconds() / 3600
-
     def export_data(self, start_date, end_date):
         filtered_data = self.scans_df[(self.scans_df['DateTime'] >= pd.Timestamp(start_date)) & (self.scans_df['DateTime'] <= pd.Timestamp(end_date))]
         output = BytesIO()
@@ -109,29 +90,82 @@ class PointageSystem:
             pd.DataFrame(self.employees.values()).to_excel(writer, sheet_name='Employés', index=False)
         return output.getvalue()
 
-def show_navigation():
-    st.sidebar.title("Menu")
-    pages = ["Pointage", "Administration", "Rapports"]
-    page = st.sidebar.radio("Pages", pages)
-    return page
+def show_pointage_page(system):
+    st.title("Enregistrement de Pointages")
+    scan_input = st.text_input("Scanner votre badge", "", key="scan_input")
+    if scan_input:
+        success, message = system.record_scan(scan_input)
+        if success:
+            st.success(message)
+        else:
+            st.error(message)
+        st.session_state["scan_input"] = ""  # Réinitialise le champ après l'enregistrement
+
+def show_admin_page(system):
+    st.title("Administration")
+    st.subheader("Ajouter un nouvel employé")
+    id_emp = st.text_input("ID Employé")
+    nom = st.text_input("Nom")
+    prenom = st.text_input("Prénom")
+    code_barre = st.text_input("Code Barres")
+    if st.button("Ajouter l'employé"):
+        if all([id_emp, nom, prenom, code_barre]):
+            if system.add_employee(id_emp, nom, prenom, code_barre):
+                st.success("Employé ajouté avec succès!")
+            else:
+                st.error("Ce code-barres existe déjà!")
+
+    st.subheader("Liste des employés")
+    if system.employees:
+        df_employees = pd.DataFrame(system.employees.values())
+        st.dataframe(df_employees)
+
+def show_reports_page(system):
+    st.title("Rapports et Analyses")
+    tabs = st.tabs(["Journalier", "Export des données"])
+
+    with tabs[0]:
+        selected_date = st.date_input("Sélectionnez une date", value=datetime.now())
+        if st.button("Générer rapport journalier"):
+            date_str = selected_date.strftime('%Y-%m-%d')
+            daily_data = []
+            for code_barre, emp in system.employees.items():
+                hours = system.calculate_daily_hours(emp['id'], date_str)
+                if hours > 0:
+                    daily_data.append({
+                        'Employé': f"{emp['prenom']} {emp['nom']}",
+                        'Heures': round(hours, 2)
+                    })
+            if daily_data:
+                df_daily = pd.DataFrame(daily_data)
+                st.dataframe(df_daily)
+
+    with tabs[1]:
+        start_date = st.date_input("Date de début", value=datetime.now() - timedelta(days=30))
+        end_date = st.date_input("Date de fin", value=datetime.now())
+        if st.button("Exporter les données"):
+            data = system.export_data(start_date, end_date)
+            st.download_button(
+                label="📥 Télécharger les données",
+                data=data,
+                file_name=f'pointages_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+
+def setup_page_config():
+    st.set_page_config(page_title="Système de Pointage", layout="wide")
 
 def main():
-    st.set_page_config(page_title="Système de Pointage", layout="wide")
+    setup_page_config()
     system = PointageSystem()
-    page = show_navigation()
-
+    
+    page = st.sidebar.radio("Pages", ["Pointage", "Administration", "Rapports"])
     if page == "Pointage":
-        st.title("Enregistrement de Pointages")
-        scan_input = st.text_input("Scanner votre badge", "")
-        if scan_input:
-            success, message = system.record_scan(scan_input)
-            st.toast(message, success=success)
+        show_pointage_page(system)
     elif page == "Administration":
-        st.title("Gestion des Employés")
-        st.text("Options d'administration...")
+        show_admin_page(system)
     elif page == "Rapports":
-        st.title("Rapports et Analyses")
-        st.text("Options de rapport...")
-        
+        show_reports_page(system)
+
 if __name__ == "__main__":
     main()
