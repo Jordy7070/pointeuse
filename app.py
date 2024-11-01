@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -8,9 +7,7 @@ from pathlib import Path
 import plotly.express as px
 from io import BytesIO
 import openpyxl
-import shutil
-import time
-from datetime import datetime, timedelta
+import pytz
 
 class PointageSystem:
     def __init__(self):
@@ -183,53 +180,59 @@ class PointageSystem:
 def show_pointage_page():
     st.title("Pointage")
 
-    # CSS pour optimiser le scan en masse
+    # CSS pour le champ de scan
     st.markdown("""
         <style>
-        /* Optimisation pour le scan en masse */
+        /* Style du champ de scan */
         div[data-baseweb="input"] input {
-            background-color: #f0f8ff;
+            background-color: #f8f9fa;
             border: 2px solid #4CAF50;
-            border-radius: 5px;
+            border-radius: 4px;
+            height: 50px;
+            font-size: 18px;
             padding: 10px;
-            font-size: 16px;
-            width: 100%;
         }
-        div[data-baseweb="input"] input:focus {
-            box-shadow: none;
-            outline: none;
-            border-color: #45a049;
+        /* Cache le message Press Enter */
+        .stTextInput > div > div > div > .stTextInput > div:last-child {
+            display: none;
         }
         </style>
     """, unsafe_allow_html=True)
+
+    # Configuration du fuseau horaire local
+    import pytz
+    local_tz = pytz.timezone('Europe/Paris')
 
     col1, col2 = st.columns([2, 1])
 
     with col1:
         st.subheader("Scanner votre badge")
         
-        # Initialisation du compteur
+        # Initialisation du compteur si nécessaire
         if 'scan_counter' not in st.session_state:
             st.session_state.scan_counter = 0
         
-        # Champ de scan sans validation
-        scan_input = st.text_input(
+        # Champ de scan avec autofocus et sans validation
+        scan_placeholder = st.empty()
+        scan_input = scan_placeholder.text_input(
             "",
+            value="",
             key=f"scan_input_{st.session_state.scan_counter}",
-            label_visibility="collapsed",
-            on_change=lambda: None,  # Désactive la validation par Enter
-            max_chars=20  # Limite pour éviter les problèmes de buffer
+            label_visibility="collapsed"
         )
 
-        if len(scan_input) >= 5:  # Longueur minimale d'un code-barres
+        # Traitement du scan
+        if scan_input and len(scan_input) >= 3:  # Vérifie si un code est scanné
+            # Obtenir l'heure locale exacte
+            current_time = datetime.now(local_tz)
+            date_str = current_time.strftime('%Y-%m-%d')
+            heure_str = current_time.strftime('%H:%M:%S')
+
             success, message = st.session_state.system.record_scan(scan_input)
             if success:
-                st.toast(message, icon="✅")
-                # Force le nouveau scan
+                # Réinitialiser immédiatement le champ
                 st.session_state.scan_counter += 1
                 st.rerun()
-            else:
-                st.error(message)
 
     with col2:
         st.subheader("Derniers pointages")
@@ -237,46 +240,69 @@ def show_pointage_page():
             recent_scans = st.session_state.system.scans_df.tail(5)
             for _, scan in recent_scans.iloc[::-1].iterrows():
                 if scan['Type_Scan'] == 'Entrée':
-                    color = '#28a745'
+                    color = '#28a745'  # Vert
                 else:
-                    color = '#dc3545'
+                    color = '#dc3545'  # Rouge
+                    
+                # Formater l'heure locale
+                heure_locale = datetime.strptime(scan['Heure'], '%H:%M:%S')
+                heure_affichee = heure_locale.strftime('%H:%M:%S')
+                
                 st.markdown(
                     f"""
                     <div style='
-                        padding: 8px; 
-                        margin-bottom: 5px;
+                        padding: 10px;
                         border-left: 4px solid {color};
-                        background-color: #f8f9fa;
+                        background-color: white;
+                        margin-bottom: 5px;
+                        border-radius: 4px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                     '>
-                        <strong>{scan['Prénom']} {scan['Nom']}</strong><br/>
-                        <span style='color: {color};'>{scan['Type_Scan']}</span> à {scan['Heure']}
+                        <strong>{scan['Prénom']} {scan['Nom']}</strong><br>
+                        <span style='color: {color};'>{scan['Type_Scan']}</span> à {heure_affichee}
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
-    # Script pour focus automatique
-    st.markdown("""
-        <script>
-            function setFocusToInput() {
-                const input = document.querySelector('input[type="text"]');
-                if (input) {
-                    input.focus();
-                }
-            }
+def record_scan(self, code_barre):
+    if code_barre in self.employees:
+        emp = self.employees[code_barre]
+        if not emp['actif']:
+            return False, "Employé inactif"
             
-            // Focus initial
-            setFocusToInput();
-            
-            // Maintenir le focus
-            setInterval(setFocusToInput, 100);
-            
-            // Capture des événements
-            document.addEventListener('click', function(e) {
-                setTimeout(setFocusToInput, 0);
-            });
-        </script>
-    """, unsafe_allow_html=True)
+        # Utilisation de l'heure locale
+        local_tz = pytz.timezone('Europe/Paris')
+        current_time = datetime.now(local_tz)
+        date_str = current_time.strftime('%Y-%m-%d')
+        heure_str = current_time.strftime('%H:%M:%S')
+        
+        aujourd_hui = self.scans_df[
+            (self.scans_df['Code_Barres'].astype(str) == str(code_barre)) & 
+            (self.scans_df['Date'].astype(str) == date_str)
+        ]
+        
+        type_scan = 'Entrée' if len(aujourd_hui) % 2 == 0 else 'Sortie'
+        
+        nouveau_scan = pd.DataFrame([{
+            'ID_Employé': emp['id'],
+            'Nom': emp['nom'],
+            'Prénom': emp['prenom'],
+            'Code_Barres': code_barre,
+            'Date': date_str,
+            'Heure': heure_str,
+            'Type_Scan': type_scan
+        }])
+        
+        nouveau_scan['DateTime'] = pd.to_datetime(
+            nouveau_scan['Date'] + ' ' + nouveau_scan['Heure']
+        )
+        
+        self.scans_df = pd.concat([self.scans_df, nouveau_scan], ignore_index=True)
+        self.save_scans()
+        
+        return True, f"{type_scan} enregistrée pour {emp['prenom']} {emp['nom']}"
+    return False, "Code-barres non reconnu"
 
 def show_admin_page():
     st.title("Administration")
