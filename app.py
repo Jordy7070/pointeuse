@@ -180,58 +180,34 @@ class PointageSystem:
 def show_pointage_page():
     st.title("Pointage")
 
-    # CSS pour le champ de scan
-    st.markdown("""
-        <style>
-        /* Style du champ de scan */
-        div[data-baseweb="input"] input {
-            background-color: #f8f9fa;
-            border: 2px solid #4CAF50;
-            border-radius: 4px;
-            height: 50px;
-            font-size: 18px;
-            padding: 10px;
-        }
-        /* Cache le message Press Enter */
-        .stTextInput > div > div > div > .stTextInput > div:last-child {
-            display: none;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # Configuration du fuseau horaire local
-    import pytz
-    local_tz = pytz.timezone('Europe/Paris')
-
+    # Layout simple en deux colonnes
     col1, col2 = st.columns([2, 1])
 
     with col1:
         st.subheader("Scanner votre badge")
         
-        # Initialisation du compteur si nécessaire
-        if 'scan_counter' not in st.session_state:
-            st.session_state.scan_counter = 0
-        
-        # Champ de scan avec autofocus et sans validation
-        scan_placeholder = st.empty()
-        scan_input = scan_placeholder.text_input(
+        # Simple champ de scan sans fioritures
+        scan_input = st.text_input(
             "",
-            value="",
-            key=f"scan_input_{st.session_state.scan_counter}",
-            label_visibility="collapsed"
+            key="scan_input",
+            placeholder="Scanner ici...",
+            label_visibility="collapsed",
+            max_chars=50,
+            help="Scanner votre badge ici"
         )
 
-        # Traitement du scan
-        if scan_input and len(scan_input) >= 3:  # Vérifie si un code est scanné
-            # Obtenir l'heure locale exacte
-            current_time = datetime.now(local_tz)
-            date_str = current_time.strftime('%Y-%m-%d')
-            heure_str = current_time.strftime('%H:%M:%S')
-
-            success, message = st.session_state.system.record_scan(scan_input)
-            if success:
-                # Réinitialiser immédiatement le champ
-                st.session_state.scan_counter += 1
+        # Traitement simple du scan
+        if scan_input:
+            try:
+                success, message = st.session_state.system.record_scan(scan_input)
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
+            except Exception as e:
+                st.error(f"Erreur: {str(e)}")
+            finally:
+                # Force le rechargement de la page
                 st.rerun()
 
     with col2:
@@ -239,31 +215,54 @@ def show_pointage_page():
         if not st.session_state.system.scans_df.empty:
             recent_scans = st.session_state.system.scans_df.tail(5)
             for _, scan in recent_scans.iloc[::-1].iterrows():
-                if scan['Type_Scan'] == 'Entrée':
-                    color = '#28a745'  # Vert
-                else:
-                    color = '#dc3545'  # Rouge
-                    
-                # Formater l'heure locale
-                heure_locale = datetime.strptime(scan['Heure'], '%H:%M:%S')
-                heure_affichee = heure_locale.strftime('%H:%M:%S')
-                
+                color = '#28a745' if scan['Type_Scan'] == 'Entrée' else '#dc3545'
                 st.markdown(
-                    f"""
-                    <div style='
-                        padding: 10px;
-                        border-left: 4px solid {color};
-                        background-color: white;
-                        margin-bottom: 5px;
-                        border-radius: 4px;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                    '>
-                        <strong>{scan['Prénom']} {scan['Nom']}</strong><br>
-                        <span style='color: {color};'>{scan['Type_Scan']}</span> à {heure_affichee}
-                    </div>
-                    """,
+                    f"""<div style='padding:10px; 
+                    border-left:3px solid {color}; margin-bottom:5px'>
+                    <b>{scan['Prénom']} {scan['Nom']}</b><br/>
+                    <span style='color:{color}'>{scan['Type_Scan']}</span> 
+                    à {scan['Heure']}</div>""", 
                     unsafe_allow_html=True
                 )
+
+def record_scan(self, code_barre):
+    """Méthode simplifiée pour enregistrer un scan"""
+    if code_barre in self.employees:
+        emp = self.employees[code_barre]
+        if not emp['actif']:
+            return False, "Employé inactif"
+        
+        # Heure locale actuelle
+        now = datetime.now()
+        date_str = now.strftime('%Y-%m-%d')
+        heure_str = now.strftime('%H:%M:%S')
+        
+        # Vérification des pointages du jour
+        aujourd_hui = self.scans_df[
+            (self.scans_df['Code_Barres'] == str(code_barre)) & 
+            (self.scans_df['Date'] == date_str)
+        ]
+        
+        type_scan = 'Entrée' if len(aujourd_hui) % 2 == 0 else 'Sortie'
+        
+        # Création du nouveau scan
+        nouveau_scan = pd.DataFrame([{
+            'ID_Employé': emp['id'],
+            'Nom': emp['nom'],
+            'Prénom': emp['prenom'],
+            'Code_Barres': code_barre,
+            'Date': date_str,
+            'Heure': heure_str,
+            'Type_Scan': type_scan
+        }])
+        
+        # Ajout et sauvegarde
+        self.scans_df = pd.concat([self.scans_df, nouveau_scan], ignore_index=True)
+        self.save_scans()
+        
+        return True, f"{type_scan} enregistrée pour {emp['prenom']} {emp['nom']}"
+        
+    return False, "Code-barres non reconnu"
 
 def record_scan(self, code_barre):
     if code_barre in self.employees:
