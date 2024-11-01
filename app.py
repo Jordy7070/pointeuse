@@ -181,38 +181,92 @@ class PointageSystem:
 def show_pointage_page():
     st.title("Pointage")
 
+    # CSS pour maintenir le focus
+    st.markdown("""
+        <style>
+        /* CSS pour maintenir le focus sur le champ de saisie */
+        div[data-baseweb="input"] input {
+            background-color: #f0f8ff;
+        }
+        div[data-baseweb="input"] input:focus {
+            box-shadow: 0 0 5px #4CAF50;
+            border-color: #4CAF50;
+        }
+        </style>
+        <!-- Script pour maintenir le focus -->
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var inputElement = document.querySelector('input[type="text"]');
+                if (inputElement) {
+                    inputElement.focus();
+                }
+            });
+        </script>
+    """, unsafe_allow_html=True)
+
     col1, col2 = st.columns([2, 1])
 
     with col1:
         st.subheader("Scanner votre badge")
+        placeholder = st.empty()
         
-        # Gestion de la clé unique pour le champ de saisie
-        if 'scan_count' not in st.session_state:
-            st.session_state.scan_count = 0
-            
-        # Utilisation d'une clé dynamique pour forcer la réinitialisation
-        scan_input = st.text_input(
-            "", 
-            key=f"scan_input_{st.session_state.scan_count}",
-            help="Scannez votre badge"
+        # Champ de scan unique et persistant
+        scan_input = placeholder.text_input(
+            "",
+            key="scan_input",
+            help="Scannez votre badge",
+            placeholder="Scanner ici...",
+            label_visibility="collapsed"
         )
 
         if scan_input:
             success, message = st.session_state.system.record_scan(scan_input)
             if success:
-                st.success(message)
-                # Incrémenter le compteur pour forcer une nouvelle clé
-                st.session_state.scan_count += 1
-                st.rerun()
+                # Afficher le message de succès sans recharger la page
+                st.toast(message, icon="✅")
+                # Vider le champ sans recharger la page
+                placeholder.text_input(
+                    "",
+                    key="scan_input",
+                    help="Scannez votre badge",
+                    placeholder="Scanner ici...",
+                    label_visibility="collapsed",
+                    value=""
+                )
             else:
                 st.error(message)
 
     with col2:
         st.subheader("Derniers pointages")
+        last_scans_placeholder = st.empty()
+        
         if not st.session_state.system.scans_df.empty:
             recent_scans = st.session_state.system.scans_df.tail(5)
+            scans_html = "<div style='background-color: #f8f9fa; padding: 10px; border-radius: 5px;'>"
             for _, scan in recent_scans.iloc[::-1].iterrows():
-                st.write(f"{scan['Prénom']} {scan['Nom']} - {scan['Type_Scan']} à {scan['Heure']}")
+                scan_time = datetime.strptime(scan['Heure'], '%H:%M:%S').strftime('%H:%M:%S')
+                if scan['Type_Scan'] == 'Entrée':
+                    color = '#28a745'  # Vert pour entrée
+                else:
+                    color = '#dc3545'  # Rouge pour sortie
+                scans_html += f"""
+                    <div style='margin-bottom: 8px; padding: 5px; border-left: 3px solid {color};'>
+                        <strong>{scan['Prénom']} {scan['Nom']}</strong><br/>
+                        <span style='color: {color};'>{scan['Type_Scan']}</span> à {scan_time}
+                    </div>
+                """
+            scans_html += "</div>"
+            last_scans_placeholder.markdown(scans_html, unsafe_allow_html=True)
+
+    # Ajout d'un auto-refresh pour les derniers pointages
+    if 'last_refresh' not in st.session_state:
+        st.session_state.last_refresh = time.time()
+    
+    current_time = time.time()
+    if current_time - st.session_state.last_refresh > 5:  # Refresh toutes les 5 secondes
+        st.session_state.last_refresh = current_time
+        time.sleep(0.1)  # Petit délai pour éviter une charge excessive
+        st.rerun()
 
 def show_admin_page():
     st.title("Administration")
