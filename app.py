@@ -186,31 +186,30 @@ def show_pointage_page():
     with col1:
         st.subheader("Scanner votre badge")
         
-        # On utilise un placeholder pour pouvoir vider le champ
+        # On utilise un placeholder pour permettre de réinitialiser le champ de texte
         placeholder = st.empty()
-        scan_value = "" if "clear_scan" in st.session_state else None
+        scan_value = "" if st.session_state.get("clear_scan") else None
         
-        # Champ de scan simple
+        # Champ de saisie du scan avec effacement automatique
         scan_input = placeholder.text_input(
             "",
             value=scan_value,
             key="scan_field"
         )
 
-        # Traitement du scan
+        # Traitement du scan si une valeur est saisie
         if scan_input:
             # Enregistrer le scan
             success, message = st.session_state.system.record_scan(scan_input)
             
             if success:
                 st.success(message)
-                # Marquer pour vider le champ au prochain rafraîchissement
-                st.session_state.clear_scan = True
-                st.rerun()
             else:
                 st.error(message)
-                st.session_state.clear_scan = True
-                st.rerun()
+                
+            # Réinitialiser le champ pour permettre un nouveau scan
+            st.session_state.clear_scan = True
+            st.rerun()  # Rafraîchir l'interface pour revenir au champ de scan
 
     with col2:
         st.subheader("Derniers pointages")
@@ -224,6 +223,42 @@ def show_pointage_page():
                     f"à {scan['Heure']}",
                     unsafe_allow_html=True
                 )
+
+def record_scan(self, code_barre):
+    """Version simplifiée de l'enregistrement"""
+    if code_barre in self.employees:
+        emp = self.employees[code_barre]
+        
+        now = datetime.now()
+        date_str = now.strftime('%Y-%m-%d')
+        heure_str = now.strftime('%H:%M:%S')
+        
+        # Déterminer le type de scan (Entrée ou Sortie)
+        scans_jour = self.scans_df[
+            (self.scans_df['Code_Barres'] == str(code_barre)) & 
+            (self.scans_df['Date'] == date_str)
+        ]
+        type_scan = 'Entrée' if len(scans_jour) % 2 == 0 else 'Sortie'
+        
+        # Nouveau scan
+        nouveau_scan = {
+            'ID_Employé': emp['id'],
+            'Nom': emp['nom'],
+            'Prénom': emp['prenom'],
+            'Code_Barres': code_barre,
+            'Date': date_str,
+            'Heure': heure_str,
+            'Type_Scan': type_scan
+        }
+        
+        # Ajouter le scan aux enregistrements
+        self.scans_df = pd.concat([self.scans_df, pd.DataFrame([nouveau_scan])], ignore_index=True)
+        
+        # Sauvegarder les scans
+        self.save_scans()
+        return True, f"{type_scan} enregistrée pour {emp['prenom']} {emp['nom']}"
+    
+    return False, "Code-barres non reconnu"
 
 def record_scan(self, code_barre):
     """Version simplifiée de l'enregistrement"""
