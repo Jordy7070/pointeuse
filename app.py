@@ -177,37 +177,43 @@ class PointageSystem:
 
         return output.getvalue()
 
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+from pathlib import Path
+
 def show_pointage_page():
     st.title("Pointage")
-
-    # Layout simple en deux colonnes
+    
     col1, col2 = st.columns([2, 1])
 
     with col1:
         st.subheader("Scanner votre badge")
         
-        # Simple champ de scan sans fioritures
-        scan_input = st.text_input(
+        # On utilise un placeholder pour pouvoir vider le champ
+        placeholder = st.empty()
+        scan_value = "" if "clear_scan" in st.session_state else None
+        
+        # Champ de scan simple
+        scan_input = placeholder.text_input(
             "",
-            key="scan_input",
-            placeholder="Scanner ici...",
-            label_visibility="collapsed",
-            max_chars=50,
-            help="Scanner votre badge ici"
+            value=scan_value,
+            key="scan_field"
         )
 
-        # Traitement simple du scan
+        # Traitement du scan
         if scan_input:
-            try:
-                success, message = st.session_state.system.record_scan(scan_input)
-                if success:
-                    st.success(message)
-                else:
-                    st.error(message)
-            except Exception as e:
-                st.error(f"Erreur: {str(e)}")
-            finally:
-                # Force le rechargement de la page
+            # Enregistrer le scan
+            success, message = st.session_state.system.record_scan(scan_input)
+            
+            if success:
+                st.success(message)
+                # Marquer pour vider le champ au prochain rafraîchissement
+                st.session_state.clear_scan = True
+                st.rerun()
+            else:
+                st.error(message)
+                st.session_state.clear_scan = True
                 st.rerun()
 
     with col2:
@@ -215,15 +221,50 @@ def show_pointage_page():
         if not st.session_state.system.scans_df.empty:
             recent_scans = st.session_state.system.scans_df.tail(5)
             for _, scan in recent_scans.iloc[::-1].iterrows():
-                color = '#28a745' if scan['Type_Scan'] == 'Entrée' else '#dc3545'
+                color = "green" if scan['Type_Scan'] == 'Entrée' else "red"
                 st.markdown(
-                    f"""<div style='padding:10px; 
-                    border-left:3px solid {color}; margin-bottom:5px'>
-                    <b>{scan['Prénom']} {scan['Nom']}</b><br/>
-                    <span style='color:{color}'>{scan['Type_Scan']}</span> 
-                    à {scan['Heure']}</div>""", 
+                    f"{scan['Prénom']} {scan['Nom']}<br>"
+                    f"<span style='color:{color}'>{scan['Type_Scan']}</span> "
+                    f"à {scan['Heure']}",
                     unsafe_allow_html=True
                 )
+
+def record_scan(self, code_barre):
+    """Version simplifiée de l'enregistrement"""
+    if code_barre in self.employees:
+        emp = self.employees[code_barre]
+        
+        now = datetime.now()
+        date_str = now.strftime('%Y-%m-%d')
+        heure_str = now.strftime('%H:%M:%S')
+        
+        # Determine type de scan
+        scans_jour = self.scans_df[
+            (self.scans_df['Code_Barres'] == str(code_barre)) & 
+            (self.scans_df['Date'] == date_str)
+        ]
+        type_scan = 'Entrée' if len(scans_jour) % 2 == 0 else 'Sortie'
+        
+        # Nouveau scan
+        nouveau_scan = {
+            'ID_Employé': emp['id'],
+            'Nom': emp['nom'],
+            'Prénom': emp['prenom'],
+            'Code_Barres': code_barre,
+            'Date': date_str,
+            'Heure': heure_str,
+            'Type_Scan': type_scan
+        }
+        
+        self.scans_df = pd.concat([
+            self.scans_df, 
+            pd.DataFrame([nouveau_scan])
+        ], ignore_index=True)
+        
+        self.save_scans()
+        return True, f"{type_scan} enregistrée pour {emp['prenom']} {emp['nom']}"
+    
+    return False, "Code-barres non reconnu"
 
 def record_scan(self, code_barre):
     """Méthode simplifiée pour enregistrer un scan"""
